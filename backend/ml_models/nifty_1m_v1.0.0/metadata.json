@@ -1,8 +1,8 @@
 {
-  "model_id": "98a704bc-38f6-405f-93be-b6ef20c579a3",
+  "model_id": "5034ae7b-cd03-44f1-b000-8b747758a09f",
   "model_name": "GradientBoostingRegressor",
   "model_version": "v1.0.0",
-  "training_timestamp": "2026-08-19T07:31:25.629768Z",
+  "training_timestamp": "2026-08-19T07:40:26.806051Z",
   "symbol": "NIFTY",
   "timeframe": "1m",
   "target": "future_return",

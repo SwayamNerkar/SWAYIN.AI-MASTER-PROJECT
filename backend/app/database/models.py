@@ -159,20 +159,43 @@ class MLTrainingRunModel(Base):
     improves_naive = Column(Boolean, nullable=False)
     run_timestamp = Column(DateTime, default=datetime.utcnow)
 
-class PredictionRecordModel(Base):
-    __tablename__ = "prediction_records"
+class BacktestRunModel(Base):
+    __tablename__ = "backtest_runs"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    timestamp = Column(DateTime, nullable=False, index=True)
+    backtest_id = Column(String(50), nullable=False, unique=True)
     symbol = Column(String(20), nullable=False, index=True)
     timeframe = Column(String(10), nullable=False)
-    model_id = Column(String(50), nullable=False)
     model_version = Column(String(20), nullable=False)
-    prediction_target = Column(String(30), nullable=False)
-    horizon_bars = Column(Integer, nullable=False)
-    predicted_value = Column(Float, nullable=False)
-    predicted_direction = Column(String(10), nullable=True)
+    horizon_bars = Column(Integer, nullable=False, default=3)
+    walk_forward_mode = Column(String(20), nullable=False, default="EXPANDING")
+    prediction_count = Column(Integer, nullable=False)
+    mae = Column(Float, nullable=False)
+    rmse = Column(Float, nullable=False)
+    r2 = Column(Float, nullable=False)
+    directional_accuracy = Column(Float, nullable=False)
+    improves_naive = Column(Boolean, nullable=False)
+    config_json = Column(JSON, nullable=False)
+    summary_metrics_json = Column(JSON, nullable=False)
     data_mode = Column(String(50), default="MOCK / SIMULATED DATA")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class BacktestPredictionModel(Base):
+    __tablename__ = "backtest_predictions"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    backtest_id = Column(String(50), nullable=False, index=True)
+    timestamp = Column(DateTime, nullable=False, index=True)
+    symbol = Column(String(20), nullable=False)
+    timeframe = Column(String(10), nullable=False)
+    prediction = Column(Float, nullable=False)
+    actual = Column(Float, nullable=False)
+    prediction_error = Column(Float, nullable=False)
+    absolute_error = Column(Float, nullable=False)
+    direction_correct = Column(Boolean, nullable=False)
+    directional_regime = Column(String(30), nullable=True)
+    volatility_state = Column(String(20), nullable=True)
+
 
 
 

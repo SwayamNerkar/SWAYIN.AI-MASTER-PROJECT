@@ -43,44 +43,48 @@
 - **Confidence & Reason Codes**: Evidence agreement confidence ($0.0 \dots 1.0$) and machine-readable reason codes.
 
 ### Task 1.5 Machine Learning Prediction Pipeline
-1. **ML Architecture & Interfaces**:
-   - `MLModelInterface` (fit, predict, save, load abstraction).
-   - `DatasetBuilderInterface` (chronological feature-target matrix construction).
-   - `PredictionServiceInterface` (end-to-end inference service).
-2. **Dataset Builder (`MLDatasetBuilder`)**:
-   - Target: `future_return = (close[t + horizon] - close[t]) / close[t]` ($N$-bars ahead, default $N=3$).
-   - Integrates Task 1.3 features and Task 1.4 regime context (`regime_code`, `volatility_code`, `regime_confidence`).
-   - **Target Leakage Protection**: Feature matrix $X$ strictly excludes target columns and future rows.
-   - **Chronological Split**: `TRAIN` (70%) $\rightarrow$ `VALIDATION` (15%) $\rightarrow$ `TEST` (15%) preserving temporal order (`train_ts < val_ts < test_ts`, zero random shuffling).
-3. **Feature Preprocessor (`FeaturePreprocessor`)**:
-   - Imputes missing values and scales features (`StandardScaler`).
-   - **Mandatory Rule**: Scaler fitted **ONLY** on training set $X_{train}$.
-4. **Baseline Model & Training (`GradientBoostingModel` & `ModelTrainingService`)**:
-   - Scikit-Learn `GradientBoostingRegressor(n_estimators=100, random_state=42)`.
-   - Metrics evaluated: MAE, RMSE, $R^2$, Directional Accuracy.
-   - Compared against Naive Zero-Return Baseline (`improves_naive`).
-   - Saves versioned artifacts to `backend/ml_models/`.
-5. **Prediction API Endpoints**:
-   - `GET /api/v1/prediction/nifty` — Returns current ML prediction for NIFTY.
-   - `GET /api/v1/prediction/sensex` — Returns current ML prediction for SENSEX.
-   - `POST /api/v1/prediction/train` — Triggers development model training.
+- **ML Architecture & Interfaces**: `MLModelInterface`, `DatasetBuilderInterface`, `PredictionServiceInterface`.
+- **Dataset Builder (`MLDatasetBuilder`)**: Target $f(t) = \frac{\text{close}[t+N] - \text{close}[t]}{\text{close}[t]}$ ($N=3$ bars).
+- **Target Leakage Protection**: Feature matrix $X$ strictly excludes target columns and future rows.
+- **Chronological Split**: `TRAIN` (70%) $\rightarrow$ `VALIDATION` (15%) $\rightarrow$ `TEST` (15%) with zero random shuffling.
+- **Preprocessing Pipeline (`FeaturePreprocessor`)**: Scaler fitted **ONLY** on training set $X_{train}$.
+- **Baseline Model & Training (`GradientBoostingModel` & `ModelTrainingService`)**: Scikit-Learn `GradientBoostingRegressor(n_estimators=100)`.
+
+### Task 1.6 Backtesting, Walk-Forward Validation & Prediction Evaluation Engine
+1. **Walk-Forward Evaluation Engine (`WalkForwardBacktestEngine`)**:
+   - Implements `BacktestEngineInterface`.
+   - Executes expanding-window walk-forward training & prediction evaluation.
+   - For each step $k$: `FeaturePreprocessor` and `GradientBoostingModel` are trained **STRICTLY ONLY** on the expanding historical training slice $X_{\text{train}}[0 \dots t]$.
+   - Generates individual `BacktestPredictionRecord`s comparing predicted return vs actual future outcome.
+   - **Zero Future Leakage**: Modifying candles after timestamp $t$ does NOT alter past predictions at or before $t$.
+2. **Statistical & Subgroup Performance Analysis**:
+   - **Regression Metrics**: MAE, RMSE, $R^2$, Mean Error, Median Absolute Error, Max Absolute Error.
+   - **Directional Metrics**: Directional Accuracy ($\text{sign}(pred) == \text{sign}(actual)$).
+   - **Naive Baseline Comparison**: Evaluates model metrics vs Naive Zero-Return Baseline ($pred = 0$) and computes `improves_naive` status.
+   - **Task 1.4 Regime Breakdown**: MAE, RMSE, and Directional Accuracy for `TRENDING_UP`, `TRENDING_DOWN`, `SIDEWAYS`, `HIGH_VOLATILITY`, and `REVERSAL`.
+   - **Task 1.4 Volatility Breakdown**: Metrics for `LOW`, `MEDIUM`, and `HIGH` volatility states.
+   - **Residual & Error Analysis**: Prediction bias, mean prediction, mean actual, max consecutive directional errors.
+3. **Backtest REST API Endpoints**:
+   - `POST /api/v1/backtest/run` — Executes walk-forward backtest evaluation run.
+   - `GET /api/v1/backtest` — Lists recent backtest evaluation summaries.
+   - `GET /api/v1/backtest/{backtest_id}` — Fetches complete backtest evaluation report.
+   - `GET /api/v1/backtest/{backtest_id}/predictions` — Returns paginated prediction records.
 
 ---
 
 ## Current Operational Notice
 ```text
 CURRENT DATA MODE = MOCK / SIMULATED DATA
-MODEL STATUS = EXPERIMENTAL
+BACKTEST ENGINE STATUS = EVALUATION ONLY (NO LIVE TRADING / NO P&L)
 ```
-- The ML prediction models produce pure numerical predictions (`future_return`). They do **NOT** generate buy/sell trading signals, place orders, or execute trades.
-- Real market data APIs, real broker execution, and live trading strategies are NOT connected yet.
+- Task 1.6 evaluates **prediction quality vs actual outcomes**. It does **NOT** calculate trading P&L, execute live trades, place broker orders, or generate buy/sell signals.
 - All mock data is clearly labeled `MOCK / SIMULATED DATA`.
 
 ---
 
 ## How to Run Tests & Server
 
-### 1. Run Complete Test Suite (Task 1.1 + 1.2 + 1.3 + 1.4 + 1.5)
+### 1. Run Complete Test Suite (Task 1.1 + 1.2 + 1.3 + 1.4 + 1.5 + 1.6)
 ```bash
 python -m pytest backend/tests -v
 ```
@@ -92,5 +96,5 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --app-dir bac
 
 ### 3. Inspect API Routes
 - Swagger UI: `http://localhost:8000/docs`
-- NIFTY Prediction: `http://localhost:8000/api/v1/prediction/nifty`
-- SENSEX Prediction: `http://localhost:8000/api/v1/prediction/sensex`
+- Run Backtest: `POST http://localhost:8000/api/v1/backtest/run`
+- List Backtests: `GET http://localhost:8000/api/v1/backtest`

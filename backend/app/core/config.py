@@ -64,6 +64,14 @@ class Settings(BaseSettings):
     ML_ARTIFACT_PATH: str = Field(default=str(BASE_DIR / "ml_models"))
     ML_MIN_TRAINING_ROWS: int = 40
 
+    # Backtesting & Prediction Evaluation Engine Config (Task 1.6)
+    BACKTEST_DEFAULT_MODE: str = "EXPANDING"
+    BACKTEST_INITIAL_TRAIN_BARS: int = 100
+    BACKTEST_EVAL_WINDOW_BARS: int = 10
+    BACKTEST_RETRAIN_FREQUENCY: str = "window"
+    BACKTEST_MIN_TRAINING_ROWS: int = 40
+    BACKTEST_MAX_PREDICTIONS: int = 10000
+
     # Databases
     DATABASE_URL: str = "postgresql+asyncpg://swayin_user:swayin_pass@localhost:5432/swayin_db"
     REDIS_URL: str = "redis://localhost:6379/0"

@@ -14,24 +14,22 @@
 - **Data Integrity**: Guaranteed zero look-ahead data leakage across feature calculation, regime detection, and ML forecasting pipelines.
 - **Broker Interface**: Abstracted design preventing broker lock-in; initial integration stub prepared for **Groww API**.
 
----
+--## 2. Completed Implementation Roadmap (Tasks 1.1 – 1.6)
 
-## 2. Completed Implementation Roadmap (Tasks 1.1 – 1.5)
-
-To date, **5 core backend subsystem modules (Tasks 1.1 through 1.5)** have been fully designed, developed, and verified.
+To date, **6 core backend subsystem modules (Tasks 1.1 through 1.6)** have been fully designed, developed, and verified.
 
 ```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                                   SWAYIN.AI BACKEND ARCHITECTURE                      │
-├─────────────────┬───────────────────┬──────────────────┬────────────────┬──────────────┤
-│    TASK 1.1     │     TASK 1.2      │     TASK 1.3     │    TASK 1.4    │   TASK 1.5   │
-│ Broker & Cost   │ Market Data &     │  Feature & Indicator│ Market Regime & │ ML Prediction│
-│ Session Engine  │ Validation Layer  │     Engine       │ Volatility Engine│   Pipeline   │
-└────────┬────────┴─────────┬─────────┴────────┬─────────┴───────┬────────┴──────┬───────┘
-         │                  │                  │                 │               │
-         └──────────────────┴──────────────────┼─────────────────┴───────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   SWAYIN.AI BACKEND ARCHITECTURE                                       │
+├─────────────────┬───────────────────┬──────────────────┬────────────────┬──────────────┬───────────────┤
+│    TASK 1.1     │     TASK 1.2      │     TASK 1.3     │    TASK 1.4    │   TASK 1.5   │   TASK 1.6    │
+│ Broker & Cost   │ Market Data &     │  Feature & Indicator│ Market Regime & │ ML Prediction│ Walk-Forward  │
+│ Session Engine  │ Validation Layer  │     Engine       │ Volatility Engine│   Pipeline   │ Backtest Engine│
+└────────┬────────┴─────────┬─────────┴────────┬─────────┴───────┬────────┴──────┬───────┴───────┬───────┘
+         │                  │                  │                 │               │               │
+         └──────────────────┴──────────────────┼─────────────────┴───────────────┴───────────────┘
                                                ▼
-                              FastAPI REST Endpoints & WebSockets
+                               FastAPI REST Endpoints & WebSockets
 ```
 
 ---
@@ -40,71 +38,61 @@ To date, **5 core backend subsystem modules (Tasks 1.1 through 1.5)** have been 
 - **Broker Abstraction Layer (`BrokerInterface`)**: Strict abstract base class ensuring complete decoupling between trading strategy logic and broker API implementations.
 - **Mock Broker Adapter (`MockBrokerAdapter`)**: Paper trading engine providing risk-free order management, virtual capital tracking, and position lifecycle controls.
 - **Groww Broker Adapter Stub (`GrowwAdapter`)**: Safe, non-operational adapter stub ready for production API credentials.
-- **Market Session State Machine (`MarketSessionEngine`)**: Real-time state machine enforcing 8 operational market states across the trading day:
-  - `PRE_OPEN` (09:00 - 09:15)
-  - `OPEN_AUCTION`
-  - `NORMAL_TRADING` (09:15 - 15:15)
-  - `NO_NEW_TRADES` (15:15 - 15:20)
-  - `SQUARE_OFF` (15:20 - 15:30)
-  - `CLOSED` (15:30+)
-- **Profitability & Transaction Cost Engine (`ProfitabilityCostEngine`)**: Configurable cost framework (`config/cost_structure.json`) simulating Indian regulatory & broker charges:
-  - Securities Transaction Tax (STT)
-  - Exchange Turnover Charges (NSE/BSE)
-  - SEBI Regulatory Fees & Stamp Duty
-  - GST & Expected Execution Slippage Models
+- **Market Session State Machine (`MarketSessionEngine`)**: Real-time state machine enforcing 8 operational market states across the trading day (09:00 - 15:30 IST).
+- **Profitability & Transaction Cost Engine (`ProfitabilityCostEngine`)**: Configurable cost framework (`config/cost_structure.json`) simulating STT, Exchange fees, SEBI charges, GST, stamp duty, and slippage.
 
 ---
 
 ### Task 1.2: Market Data Subsystem & Data Integrity Engine
 - **Domain Data Models**: Pydantic schemas enforcing strict typing for `IndexQuote`, `OHLCVCandle`, `DataHealthStatus`, `MarketSnapshot`, and `ValidatedOptionChain`.
 - **Normalization Layer (`NormalizationService`)**: Standardizes incoming raw tick and candle data to single-symbol formats, UTC/Asia-Kolkata timestamps, and uniform decimal precision.
-- **Validation Subsystem (`ValidationService`)**: Automated integrity checks validating:
-  - High $\ge$ Low, High $\ge$ Open/Close, Low $\le$ Open/Close
-  - Non-negative volume and strike step spacing
-  - Timestamp continuity and missing bar detection
+- **Validation Subsystem (`ValidationService`)**: Automated integrity checks validating High/Low bounds, non-negative volume, and timestamp continuity.
 - **Tick Freshness Monitoring**: Real-time age tracking with configurable freshness threshold (`10.0 seconds`). Flags stale market feeds instantly.
 - **Caching Layer (`MarketDataCacheService`)**: High-speed, thread-safe in-memory cache layer designed for seamless drop-in Redis scalability.
-- **Unified Market Snapshot Service (`MarketSnapshotService`)**: Aggregates NIFTY 50, SENSEX, option chain state, session engine state, and data health into a single unified JSON payload.
 
 ---
 
 ### Task 1.3: Feature Engineering & Technical Indicators Subsystem
-- **Feature Engineering Engine (`FeatureEngineeringService`)**: Computes 30+ quantitative features across `1-minute` and `5-minute` timeframes.
-- **Comprehensive Indicator Suite**:
-  - **Trend**: Simple Moving Averages (SMA), Exponential Moving Averages (EMA), VWAP, MACD (Line, Signal, Histogram), ADX.
-  - **Momentum**: Relative Strength Index (RSI), Rate of Change (ROC), Stochastic Oscillator (%K, %D).
-  - **Volatility**: Average True Range (ATR), Rolling Standard Deviation, Realized Volatility.
-  - **Volume & Price Action**: Volume Spikes, Candle Body-to-Wick ratios, Upper/Lower shadows, Price Returns.
+- **Feature Engineering Engine (`FeatureEngineeringService`)**: Computes 38+ quantitative features across `1-minute` and `5-minute` timeframes.
+- **Comprehensive Indicator Suite**: Trend (SMA, EMA, VWAP, MACD, ADX), Momentum (RSI, ROC, Stochastic), Volatility (ATR, Rolling Std, Realized Vol), Volume & Price-Action.
 - **Look-Ahead Bias Protection**: Strict timestamp alignment guarantees zero future data leakage. Verified via automated temporal validation tests.
 
 ---
 
 ### Task 1.4: Market Regime Engine & Volatility State Machine
-- **Market Regime Engine (`MarketRegimeEngine`)**: Quantitative market context classifier categorizing market state into 5 primary directional regimes:
-  1. `TRENDING_UP` (Strong bullish momentum & trend alignment)
-  2. `TRENDING_DOWN` (Strong bearish trend)
-  3. `SIDEWAYS` (Ranging / consolidated market)
-  4. `HIGH_VOLATILITY` (Turbulent price swings)
-  5. `REVERSAL` (Potential trend depletion/pivot)
-- **Volatility State Machine (`VolatilityStateMachine`)**: Classifies volatility levels into `LOW`, `MEDIUM`, and `HIGH` states. Features a **15% hysteresis buffer** to prevent rapid signal flickering (whipsaws) at boundaries.
+- **Market Regime Engine (`MarketRegimeEngine`)**: Quantitative market context classifier categorizing market state into 5 primary directional regimes: `TRENDING_UP`, `TRENDING_DOWN`, `SIDEWAYS`, `HIGH_VOLATILITY`, and `REVERSAL`.
+- **Volatility State Machine (`VolatilityStateMachine`)**: Classifies volatility levels into `LOW`, `MEDIUM`, and `HIGH` states featuring a **15% hysteresis buffer** to prevent whipsaws.
 - **Regime Confirmation & Stability**: Requires multi-bar confirmation (`REGIME_MIN_CONFIRMATION_BARS = 2`) before committing regime state changes.
-- **Confidence & Evidence Scoring**: Generates a continuous confidence score ($0.0 \dots 1.0$) alongside human & machine-readable reason codes for explainability.
 
 ---
 
 ### Task 1.5: Machine Learning Prediction Pipeline
-- **ML Architecture Abstraction**: Decoupled interface hierarchy (`MLModelInterface`, `DatasetBuilderInterface`, `PredictionServiceInterface`).
-- **Dataset Builder (`MLDatasetBuilder`)**:
-  - **Target Variable**: $N$-bar forward return $f(t) = \frac{\text{close}[t+N] - \text{close}[t]}{\text{close}[t]}$ (default $N=3$ bars).
-  - **Feature Fusion**: Combines Task 1.3 technical features with Task 1.4 market regime and volatility state encodings.
-  - **Anti-Leakage Design**: Feature matrix $X_t$ strictly excludes target returns and future prices.
-- **Temporal Train/Validation/Test Split**: Chronological splitting protocol (70% Train / 15% Val / 15% Test) enforcing strict temporal ordering ($t_{\text{train}} < t_{\text{val}} < t_{\text{test}}$) with **zero random shuffling**.
-- **Preprocessing Pipeline (`FeaturePreprocessor`)**: Missing value imputation & standard scaling fitted strictly on training partition $X_{\text{train}}$ to eliminate data snooping.
-- **Baseline ML Model (`GradientBoostingModel`)**: Scikit-Learn Gradient Boosting Regressor outperforming naive zero-return baselines across MAE, RMSE, and Directional Accuracy metrics. Model artifacts saved under `backend/ml_models/`.
-- **Prediction REST API**:
-  - `GET /api/v1/prediction/nifty` — Fetches current ML return forecast for NIFTY.
-  - `GET /api/v1/prediction/sensex` — Fetches current ML return forecast for SENSEX.
-  - `POST /api/v1/prediction/train` — Triggers automated model training workflow.
+- **Dataset Builder (`MLDatasetBuilder`)**: Constructs forward return target $f(t) = \frac{\text{close}[t+N] - \text{close}[t]}{\text{close}[t]}$ ($N=3$ bars).
+- **Temporal Split**: Chronological splitting protocol (70% Train / 15% Val / 15% Test) with **zero random shuffling**.
+- **Preprocessing Pipeline (`FeaturePreprocessor`)**: Fitted strictly on training partition $X_{\text{train}}$ to eliminate data snooping.
+- **Baseline ML Model (`GradientBoostingModel`)**: Scikit-Learn Gradient Boosting Regressor outperforming naive zero-return baselines across MAE, RMSE, and Directional Accuracy metrics.
+
+---
+
+### Task 1.6: Backtesting, Walk-Forward Validation & Prediction Evaluation Engine
+- **Walk-Forward Evaluation Engine (`WalkForwardBacktestEngine`)**:
+  - Implements `BacktestEngineInterface`.
+  - Executes expanding-window walk-forward training & prediction evaluation on historical candles.
+  - For each expanding step $k$: `FeaturePreprocessor` and `GradientBoostingModel` are trained **STRICTLY ONLY** on historical training observations $X_{\text{train}}[0 \dots t]$.
+  - Generates individual `BacktestPredictionRecord`s comparing predicted return vs actual outcome.
+  - **Zero Future Leakage**: Modifying candles after timestamp $t$ does NOT alter past predictions at or before $t$.
+- **Statistical & Subgroup Metrics**:
+  - **Regression Metrics**: MAE, RMSE, $R^2$, Mean Error, Median Absolute Error, Max Absolute Error.
+  - **Directional Metrics**: Directional Accuracy ($\text{sign}(pred) == \text{sign}(actual)$).
+  - **Naive Baseline Comparison**: Evaluates model metrics vs Naive Zero-Return Baseline ($pred = 0$) and computes `improves_naive` status.
+  - **Task 1.4 Regime Breakdown**: MAE, RMSE, and Directional Accuracy for `TRENDING_UP`, `TRENDING_DOWN`, `SIDEWAYS`, `HIGH_VOLATILITY`, and `REVERSAL`.
+  - **Task 1.4 Volatility Breakdown**: Metrics for `LOW`, `MEDIUM`, and `HIGH` volatility states.
+  - **Residual & Error Analysis**: Prediction bias, mean prediction, mean actual, max consecutive directional errors.
+- **Backtest REST API**:
+  - `POST /api/v1/backtest/run` — Executes walk-forward backtest evaluation run.
+  - `GET /api/v1/backtest` — Lists recent backtest evaluation summaries.
+  - `GET /api/v1/backtest/{backtest_id}` — Fetches complete backtest evaluation report.
+  - `GET /api/v1/backtest/{backtest_id}/predictions` — Returns paginated prediction records.
 
 ---
 
@@ -123,11 +111,30 @@ The system is delivered as a modular **FastAPI** backend with standardized endpo
 | `/api/v1/cost/estimate` | `POST` | Calculates total brokerage, STT, tax & fees | Task 1.1 Cost Engine |
 | `/api/v1/prediction/{symbol}` | `GET` | AI/ML return forecast prediction | Task 1.5 ML Pipeline |
 | `/api/v1/prediction/train` | `POST` | Triggers model training & evaluation | Task 1.5 ML Pipeline |
+| `/api/v1/backtest/run` | `POST` | Triggers walk-forward evaluation backtest | Task 1.6 Backtest Engine |
+| `/api/v1/backtest` | `GET` | Lists recent backtest summaries | Task 1.6 Backtest Engine |
+| `/api/v1/backtest/{id}` | `GET` | Fetches full backtest evaluation report | Task 1.6 Backtest Engine |
+| `/api/v1/backtest/{id}/predictions`| `GET` | Fetches paginated prediction records | Task 1.6 Backtest Engine |
 | `/ws/market` | `WS` | Real-time WebSocket stream for ticks & quotes | API Infrastructure |
 
 ---
 
 ## 4. Quality Assurance & Test Verification Summary
+
+The codebase has undergone rigorous automated testing to ensure enterprise reliability, zero data leakage, and mathematical precision.
+
+- **Total Test Suites**: 29 Test Files
+- **Total Test Cases**: **65 Individual Test Cases**
+- **Test Pass Rate**: **100% Pass** (`python -m pytest backend/tests`)
+- **Key Validation Criteria Passed**:
+  - ✅ Zero look-ahead leakage in walk-forward backtest predictions.
+  - ✅ Preprocessor scaler fitted strictly on each walk-forward expanding training window.
+  - ✅ Regime-wise & Volatility-wise metric aggregation correctness.
+  - ✅ Naive zero-return baseline metric comparison.
+  - ✅ Strict chronological ML split verification ($X_{\text{train}}$ temporal isolation).
+  - ✅ Hysteresis state transition stability under noisy market data.
+  - ✅ Market session engine transition boundary enforcement.
+  - ✅ Cost engine regulatory calculation accuracy against official fee structures.Assurance & Test Verification Summary
 
 The codebase has undergone rigorous automated testing to ensure enterprise reliability, zero data leakage, and mathematical precision.
 

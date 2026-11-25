@@ -1,5 +1,4 @@
-# SWAYIN.AI — AI-Based Intraday Options Signal & Market Intelligence System
-
+# SWAYIN.AI — AI-Based Market Basket Analysis
 ## Primary Markets
 - **NIFTY 50**
 - **SENSEX**
